@@ -8,40 +8,74 @@
 import os, sys, re
 import subprocess
 import socket
+import platform
 
 # Define path to V8 src
-V8_PATH = "/home/br4v3h3r0/v8/v8"
+V8_PATH = "/Users/braveharry/Documents/v8/v8"
 # Define path to poc.js under test (make sure this test produces a deterministic BAD)
-POC_PATH = "/home/br4v3h3r0/poc.js"
+POC_PATH = "/Users/braveharry/Documents/GitHub/Visect/test.js"
 # Define the hash under which the poc produces a BAD
 BAD_COMMIT = "f5fba01"
 # Define the Default speculated Distance between the BAD_COMMIT and the Bisect Commit (Default:128)
 DISTANCE = 128
-# Define whether the test should happen in Debug (x64.debug) or Release (x64.release) Build (Default: debug)
+# Define whether the test should happen in Debug (x64/arm64.debug) or Release (x64/arm64.release) Build (Default: debug)
+OS = None
 TEST_BUILD = "debug"
 # Define args.gn for debug and release version
-GN_ARGS_DEBUG = """
-is_component_build = true
-is_debug = true
-symbol_level = 2
-target_cpu = "x64"
-v8_enable_backtrace = true
-v8_enable_fast_mksnapshot = true
-v8_enable_slow_dchecks = true
-v8_optimized_debug = false
-"""
+GN_ARGS = None
 
-GN_ARGS_RELEASE = """
-is_component_build = false
-is_debug = false
-target_cpu = "x64"
-v8_enable_sandbox = true
-v8_enable_backtrace = true
-v8_enable_disassembler = true
-v8_enable_object_print = true
-v8_enable_verify_heap = true
-dcheck_always_on = false
-"""
+def get_gn_args(target_cpu: str, is_debug: bool) -> str:
+    if is_debug:
+        return f"""
+        is_component_build = true
+        is_debug = true
+        symbol_level = 2
+        target_cpu = "{target_cpu}"
+        v8_enable_backtrace = true
+        v8_enable_fast_mksnapshot = true
+        v8_enable_slow_dchecks = true
+        v8_optimized_debug = false
+        """
+    else:
+        return f"""
+        is_component_build = false
+        is_debug = false
+        target_cpu = "{target_cpu}"
+        v8_enable_sandbox = true
+        v8_enable_backtrace = true
+        v8_enable_disassembler = true
+        v8_enable_object_print = true
+        v8_enable_verify_heap = true
+        dcheck_always_on = false
+        """
+
+def detect_os_and_build_args(test_build="debug"):
+    os_name = platform.system()
+
+    if os_name == "Darwin":
+        print("[+] macOS Detected. Setting arm64 as build target")
+        target_cpu = "arm64"
+    elif os_name == "Linux":
+        print("[+] Linux Detected. Setting x64 as build target")
+        target_cpu = "x64"
+    elif os_name == "Windows":
+        print("[-] Windows is not supported yet. Bailing...")
+        sys.exit(1)
+    else:
+        print(f"[-] Unknown OS: {os_name}. Bailing...")
+        sys.exit(1)
+
+    is_debug = test_build.lower() == "debug"
+    gn_args = get_gn_args(target_cpu, is_debug)
+    return target_cpu, gn_args
+
+def is_git_installed():
+    try:
+        subprocess.run(["git", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        print("[+] Git is installed. Good...")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("[-] Git not found. Please install it first and put it in PATH.")
+        sys.exit(1)
 
 def is_internet_working(host="www.google.com", port=80, timeout=3):
     try:
@@ -115,7 +149,7 @@ def run_gclient_sync():
 
 def git_checkout_commit(commit_hash):
     try:
-        if not is_valid_commit_hash(commit_hash):
+        if (not is_valid_commit_hash(commit_hash)) and (commit_hash != "main"):
             print("[-] Input is not a valid commit hash. Bailing...")
             sys.exit(1)
 
@@ -152,19 +186,13 @@ def run_gn_gen():
             print(f"[-] Invalid V8 path: {V8_PATH}")
             sys.exit(1)
 
-        # Select GN args based on TEST_BUILD
-        if TEST_BUILD.lower() == "debug":
-            gn_args = GN_ARGS_DEBUG
-        elif TEST_BUILD.lower() == "release":
-            gn_args = GN_ARGS_RELEASE
-
-        print(f"[*] Running 'gn gen x64.bisect' for {TEST_BUILD} build...")
+        print(f"[*] Running 'gn gen {OS}.bisect' for {TEST_BUILD} build...")
 
         cmd = [
             "gn",
             "gen",
-            "out/x64.bisect",
-            f'--args={gn_args.replace(chr(10), " ").strip()}'
+            f"out/{OS}.bisect",
+            f'--args={GN_ARGS.replace(chr(10), " ").strip()}'
         ]
 
         process = subprocess.Popen(
@@ -231,8 +259,9 @@ def get_commit(start_hash):
         return None
 
 def run_ninja_build():
+    global OS
     try:
-        out_dir = "out/x64.bisect"
+        out_dir = f"out/{OS}.bisect"
         full_out_path = os.path.join(V8_PATH, out_dir)
 
         if not os.path.isdir(full_out_path):
@@ -284,6 +313,12 @@ if (not TEST_BUILD.lower() == "debug") and (not TEST_BUILD.lower() == "release")
 # run_gn_gen()
 # run_ninja_build()
 # get_commit(BAD_COMMIT)
-git_checkout_commit("5851db91946")
+
+OS, GN_ARGS = detect_os_and_build_args("debug")
+is_git_installed()
+is_internet_working()
+
+git_checkout_commit("main")
 run_gclient_sync()
+run_gn_gen()
 run_ninja_build()
