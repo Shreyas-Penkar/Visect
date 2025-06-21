@@ -4,7 +4,7 @@ A tool to make finding Bisect in V8 easier. Currently in Development.
 
 ### TODO
 - [X] Complete Basic V8 Build System (for Linux)
-- [ ] Expand above tool to MacOS (only the specifics)
+- [X] Expand above tool to MacOS (only the specifics)
 - [ ] Implement Bisect Functionality with Speculation
 - [ ] Add timing information for analysis
 - [ ] Implement Good/Bad based Bisect Functionality
