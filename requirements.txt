@@ -1,0 +1,9 @@
+certifi==2025.6.15
+charset-normalizer==3.4.2
+idna==3.10
+python-dotenv==1.0.1
+requests==2.32.4
+ripgrepy==2.1.0
+termcolor==2.4.0
+tqdm==4.67.1
+urllib3==2.2.3
