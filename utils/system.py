@@ -50,8 +50,8 @@ def detect_os():
         green("[+] Linux Detected. Setting it as target OS")
         target_cpu = "x64"
     elif os_name == "Windows":
-        red("[-] Windows Detected. Setting it as target OS")
-        target_cpu = "w64"
+        red("[-] Windows is not supported yet. Bailing...S")
+        sys.exit(1)
     else:
         red(f"[-] Unknown OS: {os_name}. Bailing...")
         sys.exit(1)
